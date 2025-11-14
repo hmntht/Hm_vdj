@@ -520,12 +520,3 @@
 </html>
 ```eof
 
-### How the "AI-Style" Auto-Remix Works:
-
-1.  **Upload & BPM:** You upload the song and manually set the BPM (since true AI analysis is not possible here).
-2.  **Click "REMIX":**
-    * **Bass Boost:** The code instantly sets the `bassEQ` filter on the original track to **+12 dB** at 80 Hz, fulfilling the "extra high bass beats" requirement.
-    * **Jazz Beat:** It instantly loads a complex, pre-programmed pattern into the `sequenceData` for Kick, Snare, and Hi-Hat, designed to sound heavy and jazzy.
-    * **Bassline:** It loads a "walking" bassline pattern into the `bass` track. The bass synth itself uses a sawtooth waveform and a specific filter envelope to sound like a synth/electric bass.
-3.  **Play:** When you press play, all four elements (Original Track + Bass Boost, Kick, Snare, Bassline) play in perfect sync with the BPM.
-4.  **Download:** The "Download Final Mix" button will execute a recording sequence, mixing the audio from the original track and all the generated beats into a single downloadable WAV file.
