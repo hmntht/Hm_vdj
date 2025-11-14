@@ -65,17 +65,17 @@
 <body class="p-4">
 
     <div class="container bg-gray-800 p-6 rounded-2xl shadow-2xl space-y-6">
-        <h1 class="text-3xl font-extrabold text-center text-blue-400">🤖 AI Beat Mixer</h1>
-        <p class="text-gray-400 text-center mb-6">Upload your track, and the AI will analyze it to automatically determine the best tempo and key, then generate a complex, syncopated beat to mix with it.</p>
+        <h1 class="text-3xl font-extrabold text-center text-blue-400">🤖 AI Beat Mixer (User Quota)</h1>
+        <p class="text-gray-400 text-center mb-6">This app uses your signed-in Google account to run the AI analysis, ensuring it operates on your personal Gemini quota.</p>
 
         <!-- Status Message -->
         <div id="statusMessage" class="bg-blue-900/50 text-blue-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100">
             Upload your track to begin analysis.
         </div>
-
+        
         <!-- 1. Track & Analysis Controls -->
         <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Track Upload & Analysis</h2>
+            <h2 class="text-xl font-bold text-gray-200">Track Upload & AI Analysis</h2>
 
             <label class="block">
                 <span class="text-sm font-medium text-gray-400">Upload Track:</span>
@@ -83,6 +83,7 @@
                   file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0
                   file:text-sm file:font-semibold file:bg-blue-500/10 file:text-blue-300
                   hover:file:bg-blue-500/20"
+                  onchange="checkTrackLoaded()"
                 />
             </label>
 
@@ -123,10 +124,10 @@
 
     <script>
         // --- API and Global Constants ---
-        const apiKey = "AIzaSyA2_k2vJSu4wjwH2XSW54VmWfyXfQilTdU"; // API Key updated here
+        // Setting apiKey to empty string so the Canvas environment can inject the token securely using the user's quota.
+        const apiKey = ""; 
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         const STEPS = 16;
-        const TRACKS = ['kick', 'snare', 'hihat', 'bass']; 
         
         // --- Audio State & Sequencer Data ---
         let mainPlayer = null; 
@@ -141,9 +142,9 @@
         let sequenceData = {
             kick: Array(STEPS).fill(false), 
             snare: Array(STEPS).fill(false), 
-            hihat: Array(STEPS).fill(false), 
-            bass: Array(STEPS).fill(false), // 16-step derived pattern
-            bassNotes: Array(8).fill("C3") // 8-step musical notes
+            hihat: Array(STEPS).fill(false),
+            bass: Array(STEPS).fill(false),
+            bassNotes: Array(8).fill("C3")
         };
 
         // --- Instrument Definitions (Bass-Heavy Focus) ---
@@ -183,6 +184,18 @@
             Object.values(drumPadButtons).forEach(btn => btn.disabled = disabled);
         }
 
+        /**
+         * Checks if the track is loaded and enables the generate button.
+         */
+        function checkTrackLoaded() {
+            const isTrackLoaded = mainPlayer && mainPlayer.loaded;
+            generateButton.disabled = !isTrackLoaded;
+            if (isTrackLoaded) {
+                 showStatus("Track loaded. Ready for AI Analysis.", 'green');
+            }
+        }
+
+
         // Exponential backoff for API calls
         async function fetchWithRetry(url, payload, retries = 5, delay = 1000) {
             for (let i = 0; i < retries; i++) {
@@ -198,8 +211,9 @@
                         continue;
                     }
                     if (!response.ok) {
-                        console.error(`Attempt ${i + 1}: HTTP error status ${response.status}`);
-                        if (i === retries - 1) throw new Error(`HTTP error! status: ${response.status}`);
+                        const errorBody = await response.text();
+                        console.error(`Attempt ${i + 1}: HTTP error status ${response.status}`, errorBody);
+                        if (i === retries - 1) throw new Error(`HTTP error! status: ${response.status}. Check console for details.`);
                         await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
                         continue;
                     }
@@ -273,9 +287,13 @@
 
         // --- Audio File Handling ---
 
-        audioFileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+        audioFileInput.addEventListener('change', async () => {
+            const file = audioFileInput.files[0];
+            if (!file) {
+                 mainPlayer = null;
+                 checkTrackLoaded(); 
+                 return;
+            }
 
             if (!isToneInitialized) { await initializeTone(); }
 
@@ -295,14 +313,15 @@
                     mainPlayer.loop = true;
                     mainPlayer.volume.value = -12; 
                     
-                    generateButton.disabled = false;
                     setPadButtonsDisabled(true);
-                    showStatus(`Track loaded. Ready for AI Analysis.`, 'blue');
+                    checkTrackLoaded();
                 },
                 onerror: (e) => {
-                    generateButton.disabled = true;
+                    mainPlayer = null;
                     setPadButtonsDisabled(true);
+                    checkTrackLoaded();
                     showStatus("Error loading track. Is it a valid audio file?", 'red');
+                    console.error("Tone.js Player Error:", e);
                 }
             });
         });
@@ -314,10 +333,10 @@
                 showStatus("Please upload a track first.", 'red');
                 return;
             }
-
+            
             const fileName = audioFileInput.files[0].name;
 
-            showStatus(`🧠 Analyzing "${fileName}" and generating beat...`, 'purple');
+            showStatus(`🧠 Analyzing "${fileName}" using your Google account and generating beat...`, 'purple');
             generateButton.disabled = true;
             
             const systemPrompt = `You are a world-class electronic music producer and music theory expert. Your primary goal is to analyze the provided track title to infer the best BPM and Key for a bass-heavy, jazz-influenced electronic remix. Your secondary goal is to generate the perfect beat and bassline for that inferred tempo and key.`;
@@ -347,32 +366,42 @@
             let parsedJson;
 
             try {
+                // Fetching using the standard URL, relying on environment to inject authentication
                 const result = await fetchWithRetry(API_URL, payload);
-                let jsonText = result.candidates[0].content.parts[0].text;
+                const candidate = result?.candidates?.[0];
+                const parts = candidate?.content?.parts;
                 
-                // ROBUST FIX: Strip any markdown triple backticks (```json or ```) that might wrap the JSON object.
+                if (!parts || parts.length === 0) {
+                    throw new Error("API returned an empty or malformed response structure.");
+                }
+
+                let jsonText = parts[0].text;
+                
+                // Robustly parse the JSON response
                 jsonText = jsonText.replace(/```json\s*/g, '').replace(/\s*```/g, '');
 
                 try {
                     parsedJson = JSON.parse(jsonText);
+                    if (!parsedJson) throw new Error("Parsed JSON object is null or undefined.");
                 } catch (e) {
-                    console.error("JSON Parsing Error: AI returned invalid JSON.", jsonText);
-                    throw new Error("AI returned data in a non-parseable format even after cleanup.");
+                    console.error("JSON Parsing Error: AI returned invalid JSON. Raw data:", jsonText);
+                    throw new Error("AI returned data in a non-parseable format. Raw data logged to console.");
                 }
                 
                 // --- Apply the generated data ---
                 
-                // 1. Update Inferred BPM/Key
                 inferredBPM = parsedJson.inferredBPM || 120;
                 const inferredKey = parsedJson.inferredKey || 'C major';
                 
                 Tone.Transport.bpm.value = inferredBPM;
                 
-                // 2. Load Patterns
-                sequenceData.kick = parsedJson.kickPattern || Array(STEPS).fill(false);
-                sequenceData.snare = parsedJson.snarePattern || Array(STEPS).fill(false);
-                sequenceData.hihat = parsedJson.hihatPattern || Array(STEPS).fill(false);
-                sequenceData.bassNotes = parsedJson.basslineNotes && parsedJson.basslineNotes.length === 8 
+                // Safely load patterns
+                const getPattern = (data) => Array.isArray(data) && data.length === STEPS ? data : Array(STEPS).fill(false);
+                sequenceData.kick = getPattern(parsedJson.kickPattern);
+                sequenceData.snare = getPattern(parsedJson.snarePattern);
+                sequenceData.hihat = getPattern(parsedJson.hihatPattern);
+                
+                sequenceData.bassNotes = Array.isArray(parsedJson.basslineNotes) && parsedJson.basslineNotes.length === 8 
                     ? parsedJson.basslineNotes : Array(8).fill("C3");
                 
                 // Derive the 16-step bass hit pattern
@@ -390,8 +419,8 @@
                 showStatus(`✅ AI Remix Pattern Loaded! Inferred BPM: ${inferredBPM}. Press 'Start AI Remix Loop'.`, 'green');
 
             } catch (error) {
-                console.error("Gemini API Error:", error);
-                showStatus(`❌ AI generation failed: ${error.message}. Try simplifying the file name.`, 'red');
+                console.error("Remix Generation Error:", error);
+                showStatus(`❌ AI generation failed. This might indicate an issue with your account's quota or permissions.`, 'red');
                 generateButton.disabled = false;
             }
         }
@@ -412,7 +441,7 @@
                 button.classList.remove('bg-orange-600');
                 button.classList.add('bg-blue-600');
             }
-            button.disabled = !mainPlayer || !mainPlayer.loaded || generateButton.disabled;
+            button.disabled = !mainPlayer || !mainPlayer.loaded || (generateButton.disabled && !isLooping);
         }
 
 
@@ -513,7 +542,7 @@
         // --- Initial Setup ---
         window.onload = () => {
             initializeTone();
-            updateLoopButton(isLooping);
+            checkTrackLoaded(); // Ensure initial state is correct
         };
 
     </script>
