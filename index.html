@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Gemini Remix Designer</title>
+    <title>Local Remix Designer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -65,17 +65,17 @@
 <body class="p-4">
 
     <div class="container bg-gray-800 p-6 rounded-2xl shadow-2xl space-y-6">
-        <h1 class="text-3xl font-extrabold text-center text-blue-400">🤖 AI Beat Mixer (User Quota)</h1>
-        <p class="text-gray-400 text-center mb-6">This app uses your signed-in Google account to run the AI analysis, ensuring it operates on your personal Gemini quota.</p>
+        <h1 class="text-3xl font-extrabold text-center text-red-400">🎶 Local Beat Mixer (No API)</h1>
+        <p class="text-gray-400 text-center mb-6">Upload your track, select a Vibe Preset, and instantly load a complex, syncopated beat and bassline to mix with it.</p>
 
         <!-- Status Message -->
         <div id="statusMessage" class="bg-blue-900/50 text-blue-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100">
-            Upload your track to begin analysis.
+            Upload your track to enable the Remix controls.
         </div>
         
-        <!-- 1. Track & Analysis Controls -->
+        <!-- 1. Track Upload -->
         <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Track Upload & AI Analysis</h2>
+            <h2 class="text-xl font-bold text-gray-200">Track Upload</h2>
 
             <label class="block">
                 <span class="text-sm font-medium text-gray-400">Upload Track:</span>
@@ -86,16 +86,23 @@
                   onchange="checkTrackLoaded()"
                 />
             </label>
+        </div>
 
-            <!-- AI Analyze & Generate Button -->
-            <button id="generateButton" onclick="analyzeAndGenerateRemix()"
+        <!-- 2. Preset Selection and Load Button -->
+        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
+            <h2 class="text-xl font-bold text-gray-200">Vibe Selector</h2>
+             <select id="vibePreset" class="w-full p-2.5 rounded-lg bg-gray-700 text-white focus:ring-purple-500 focus:border-purple-500">
+                <!-- Options populated by JS -->
+            </select>
+
+            <button id="loadButton" onclick="loadRemixPreset()"
                     class="w-full p-3 rounded-xl font-black text-lg bg-purple-600 text-white hover:bg-purple-700 transition duration-300 disabled:bg-gray-600 shadow-xl shadow-purple-500/30"
                     disabled>
-                🧠 ANALYZE & GENERATE AI REMIX
+                🎧 LOAD REMIX PRESET
             </button>
         </div>
         
-        <!-- 2. Drum Pad Interface -->
+        <!-- 3. Drum Pad Interface -->
         <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
              <h2 class="text-xl font-bold text-gray-200" id="analysisResultTitle">Drum Pad (Tap Sounds)</h2>
 
@@ -107,12 +114,12 @@
             </div>
         </div>
 
-        <!-- 3. Playback and Download -->
+        <!-- 4. Playback and Download -->
         <div class="grid grid-cols-2 gap-4">
             <button id="toggleLoopButton" onclick="toggleLoopPlayback()"
                     class="p-4 rounded-xl font-bold text-lg bg-blue-600 hover:bg-blue-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
                     disabled>
-                ▶️ Start AI Remix Loop
+                ▶️ Start Local Remix Loop
             </button>
             <button id="downloadButton" onclick="downloadMix()"
                     class="p-4 rounded-xl font-bold text-lg bg-green-600 hover:bg-green-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
@@ -123,12 +130,45 @@
     </div>
 
     <script>
-        // --- API and Global Constants ---
-        // Setting apiKey to empty string so the Canvas environment can inject the token securely using the user's quota.
-        const apiKey = ""; 
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+        // --- Global Constants & Presets (The Local AI Replacement) ---
         const STEPS = 16;
         
+        // --- Pre-programmed musical patterns for local analysis replacement ---
+        const REMIX_PRESETS = {
+            'Jazzy Drum & Bass (170 BPM)': {
+                inferredBPM: 170,
+                inferredKey: 'A minor',
+                kickPattern: [true, false, false, false, true, false, false, false, false, false, true, false, false, false, true, false], 
+                snarePattern: [false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, true], 
+                hihatPattern: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true], 
+                basslineNotes: ["A2", "D3", "E3", "A2", "C3", "G3", "F3", "A2"], 
+            },
+            'Deep House Groove (124 BPM)': {
+                inferredBPM: 124,
+                inferredKey: 'F# minor',
+                kickPattern: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false], 
+                snarePattern: [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false], 
+                hihatPattern: [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true], 
+                basslineNotes: ["F#2", "G#2", "A2", "C#3", "D#3", "C#3", "B2", "G#2"], 
+            },
+            'Lo-Fi Hip-Hop Beat (80 BPM)': {
+                inferredBPM: 80,
+                inferredKey: 'C major',
+                kickPattern: [true, false, false, false, false, false, true, false, true, false, false, false, false, false, true, false], 
+                snarePattern: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false], 
+                hihatPattern: [true, false, true, true, false, false, true, false, true, false, true, true, false, false, true, false], 
+                basslineNotes: ["C2", "G2", "A2", "F2", "C2", "G2", "A2", "F2"], 
+            },
+            'Techno Industrial (135 BPM)': {
+                inferredBPM: 135,
+                inferredKey: 'D minor',
+                kickPattern: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false], 
+                snarePattern: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false], 
+                hihatPattern: [false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, true], 
+                basslineNotes: ["D2", "D2", "A2", "A2", "G2", "G2", "D2", "D2"], 
+            }
+        };
+
         // --- Audio State & Sequencer Data ---
         let mainPlayer = null; 
         let drumSynths = {}; 
@@ -138,7 +178,6 @@
         let isLooping = false; 
         let inferredBPM = 120;
         
-        // Final generated pattern data
         let sequenceData = {
             kick: Array(STEPS).fill(false), 
             snare: Array(STEPS).fill(false), 
@@ -161,11 +200,12 @@
 
         // --- DOM Elements ---
         const audioFileInput = document.getElementById('audioFile');
-        const generateButton = document.getElementById('generateButton');
+        const loadButton = document.getElementById('loadButton');
         const toggleLoopButton = document.getElementById('toggleLoopButton');
         const downloadButton = document.getElementById('downloadButton');
         const statusMessage = document.getElementById('statusMessage');
         const analysisResultTitle = document.getElementById('analysisResultTitle');
+        const vibePresetSelect = document.getElementById('vibePreset');
         const drumPadButtons = {
             'kick': document.getElementById('padKick'),
             'snare': document.getElementById('padSnare'),
@@ -185,46 +225,16 @@
         }
 
         /**
-         * Checks if the track is loaded and enables the generate button.
+         * Checks if the track is loaded and enables the load button.
          */
         function checkTrackLoaded() {
             const isTrackLoaded = mainPlayer && mainPlayer.loaded;
-            generateButton.disabled = !isTrackLoaded;
+            loadButton.disabled = !isTrackLoaded;
             if (isTrackLoaded) {
-                 showStatus("Track loaded. Ready for AI Analysis.", 'green');
+                 showStatus("Track loaded. Select a Vibe Preset and press 'LOAD REMIX PRESET'.", 'green');
             }
-        }
-
-
-        // Exponential backoff for API calls
-        async function fetchWithRetry(url, payload, retries = 5, delay = 1000) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.status === 429) { 
-                        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-                        continue;
-                    }
-                    if (!response.ok) {
-                        const errorBody = await response.text();
-                        console.error(`Attempt ${i + 1}: HTTP error status ${response.status}`, errorBody);
-                        if (i === retries - 1) throw new Error(`HTTP error! status: ${response.status}. Check console for details.`);
-                        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-                        continue;
-                    }
-                    return response.json();
-
-                } catch (error) {
-                    console.error(`Attempt ${i + 1}: Network/Fetch error:`, error);
-                    if (i === retries - 1) throw error;
-                    await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-                }
-            }
+            // Also update the loop button state
+            updateLoopButton(isLooping);
         }
 
 
@@ -256,7 +266,7 @@
                 // Bass note is triggered on the first 16th note of the 8th note interval
                 if (sequenceData.bass[step] && step % 2 === 0) { 
                     const note = sequenceData.bassNotes[bassStep];
-                    if (note) { drumSynths.bass.triggerAttackRelease(note, "8n", time); }
+                    if (note) { drumSynths.bass.triggerAttackAttackRelease(note, "8n", time); }
                 }
                 
                 // --- Visual Step Indicator (Light up the buttons when triggered by the loop) ---
@@ -282,6 +292,20 @@
             sequencer.loop = true;
 
             isToneInitialized = true;
+        }
+
+        // Populates the preset dropdown
+        function populatePresets() {
+            const select = vibePresetSelect;
+            select.innerHTML = ''; // Clear existing options
+            Object.keys(REMIX_PRESETS).forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            // Select the first one by default
+            select.selectedIndex = 0;
         }
 
 
@@ -326,103 +350,50 @@
             });
         });
 
-        // --- GEMINI API CALL (Analyze & Generate) ---
+        // --- LOCAL PRESET LOAD FUNCTION ---
 
-        async function analyzeAndGenerateRemix() {
+        function loadRemixPreset() {
             if (!mainPlayer || !mainPlayer.loaded) {
                 showStatus("Please upload a track first.", 'red');
                 return;
             }
-            
-            const fileName = audioFileInput.files[0].name;
 
-            showStatus(`🧠 Analyzing "${fileName}" using your Google account and generating beat...`, 'purple');
-            generateButton.disabled = true;
-            
-            const systemPrompt = `You are a world-class electronic music producer and music theory expert. Your primary goal is to analyze the provided track title to infer the best BPM and Key for a bass-heavy, jazz-influenced electronic remix. Your secondary goal is to generate the perfect beat and bassline for that inferred tempo and key.`;
-            
-            const userQuery = `Analyze the provided track title "${fileName}" to infer its likely BPM (integer) and main musical Key (e.g., 'A minor', 'C major'). Then, based on those inferred values, create a complex, syncopated, jazzy 16-step drum pattern (Kick, Snare, Hi-Hat) and an 8-note bassline sequence. The final output must be in the specified JSON schema.`;
-            
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            "inferredBPM": { "type": "INTEGER", "description": "The BPM determined by analyzing the track title (integer)." },
-                            "inferredKey": { "type": "STRING", "description": "The musical Key determined by analyzing the track title (e.g., 'A minor')." },
-                            "kickPattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the kick drum pattern (true for hit, false for silence). Must be complex and syncopated." },
-                            "snarePattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the snare drum pattern (jazzy/syncopated hits)." },
-                            "hihatPattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the hi-hat pattern (fast, rhythmic hits)." },
-                            "basslineNotes": { "type": "ARRAY", "items": { "type": "STRING" }, "description": "An 8-element array of musical notes (e.g., 'C3', 'G2', 'Bb2') that form a 4-beat walking bass sequence in 8th notes, matching the specified key." }
-                        },
-                        "propertyOrdering": ["inferredBPM", "inferredKey", "kickPattern", "snarePattern", "hihatPattern", "basslineNotes"]
-                    }
-                }
-            };
-            
-            let parsedJson;
+            const selectedPresetName = vibePresetSelect.value;
+            const preset = REMIX_PRESETS[selectedPresetName];
 
-            try {
-                // Fetching using the standard URL, relying on environment to inject authentication
-                const result = await fetchWithRetry(API_URL, payload);
-                const candidate = result?.candidates?.[0];
-                const parts = candidate?.content?.parts;
-                
-                if (!parts || parts.length === 0) {
-                    throw new Error("API returned an empty or malformed response structure.");
-                }
-
-                let jsonText = parts[0].text;
-                
-                // Robustly parse the JSON response
-                jsonText = jsonText.replace(/```json\s*/g, '').replace(/\s*```/g, '');
-
-                try {
-                    parsedJson = JSON.parse(jsonText);
-                    if (!parsedJson) throw new Error("Parsed JSON object is null or undefined.");
-                } catch (e) {
-                    console.error("JSON Parsing Error: AI returned invalid JSON. Raw data:", jsonText);
-                    throw new Error("AI returned data in a non-parseable format. Raw data logged to console.");
-                }
-                
-                // --- Apply the generated data ---
-                
-                inferredBPM = parsedJson.inferredBPM || 120;
-                const inferredKey = parsedJson.inferredKey || 'C major';
-                
-                Tone.Transport.bpm.value = inferredBPM;
-                
-                // Safely load patterns
-                const getPattern = (data) => Array.isArray(data) && data.length === STEPS ? data : Array(STEPS).fill(false);
-                sequenceData.kick = getPattern(parsedJson.kickPattern);
-                sequenceData.snare = getPattern(parsedJson.snarePattern);
-                sequenceData.hihat = getPattern(parsedJson.hihatPattern);
-                
-                sequenceData.bassNotes = Array.isArray(parsedJson.basslineNotes) && parsedJson.basslineNotes.length === 8 
-                    ? parsedJson.basslineNotes : Array(8).fill("C3");
-                
-                // Derive the 16-step bass hit pattern
-                sequenceData.bass = Array(STEPS).fill(false);
-                for (let i = 0; i < 8; i++) {
-                    if (sequenceData.bassNotes[i]) { sequenceData.bass[i * 2] = true; }
-                }
-                
-                generateButton.disabled = false;
-                downloadButton.disabled = false;
-                setPadButtonsDisabled(false);
-                updateLoopButton(isLooping, inferredBPM, inferredKey);
-                analysisResultTitle.textContent = `Drum Pad (Inferred Key: ${inferredKey})`;
-                
-                showStatus(`✅ AI Remix Pattern Loaded! Inferred BPM: ${inferredBPM}. Press 'Start AI Remix Loop'.`, 'green');
-
-            } catch (error) {
-                console.error("Remix Generation Error:", error);
-                showStatus(`❌ AI generation failed. This might indicate an issue with your account's quota or permissions.`, 'red');
-                generateButton.disabled = false;
+            if (!preset) {
+                showStatus("Error: Invalid preset selected.", 'red');
+                return;
             }
+
+            // --- Apply the generated data ---
+            inferredBPM = preset.inferredBPM;
+            const inferredKey = preset.inferredKey;
+            
+            Tone.Transport.bpm.value = inferredBPM;
+            
+            // Safely load patterns
+            const getPattern = (data) => Array.isArray(data) && data.length === STEPS ? data : Array(STEPS).fill(false);
+            sequenceData.kick = getPattern(preset.kickPattern);
+            sequenceData.snare = getPattern(preset.snarePattern);
+            sequenceData.hihat = getPattern(preset.hihatPattern);
+            
+            sequenceData.bassNotes = Array.isArray(preset.basslineNotes) && preset.basslineNotes.length === 8 
+                ? preset.basslineNotes : Array(8).fill("C3");
+            
+            // Derive the 16-step bass hit pattern
+            sequenceData.bass = Array(STEPS).fill(false);
+            for (let i = 0; i < 8; i++) {
+                if (sequenceData.bassNotes[i]) { sequenceData.bass[i * 2] = true; }
+            }
+            
+            loadButton.disabled = false;
+            downloadButton.disabled = false;
+            setPadButtonsDisabled(false);
+            updateLoopButton(isLooping, inferredBPM, inferredKey);
+            analysisResultTitle.textContent = `Drum Pad (Vibe: ${inferredKey} - ${selectedPresetName})`;
+            
+            showStatus(`✅ Remix Vibe Loaded! BPM: ${inferredBPM}. Press 'Start Local Remix Loop'.`, 'green');
         }
 
 
@@ -433,22 +404,24 @@
             const keyDisplay = key !== 'N/A' ? `(${key})` : '';
 
             if (isLooping) {
-                button.textContent = `⏸️ Pause AI Loop @ ${bpm} BPM`;
+                button.textContent = `⏸️ Pause Local Loop @ ${bpm} BPM`;
                 button.classList.remove('bg-blue-600');
                 button.classList.add('bg-orange-600');
             } else {
-                button.textContent = `▶️ Start AI Remix Loop @ ${bpm} BPM ${keyDisplay}`;
+                button.textContent = `▶️ Start Local Remix Loop @ ${bpm} BPM ${keyDisplay}`;
                 button.classList.remove('bg-orange-600');
                 button.classList.add('bg-blue-600');
             }
-            button.disabled = !mainPlayer || !mainPlayer.loaded || (generateButton.disabled && !isLooping);
+            // Ensure loop button is disabled until a track is loaded AND a preset has been loaded once
+            const isPresetLoaded = !analysisResultTitle.textContent.includes('Tap Sounds');
+            button.disabled = !mainPlayer || !mainPlayer.loaded || !isPresetLoaded;
         }
 
 
         async function toggleLoopPlayback() {
             if (!mainPlayer || !mainPlayer.loaded) { return; }
             if (toggleLoopButton.disabled) {
-                 showStatus("Please press 'ANALYZE & GENERATE' first.", 'red');
+                 showStatus("Please press 'LOAD REMIX PRESET' first.", 'red');
                 return;
             }
 
@@ -459,7 +432,7 @@
                 mainPlayer.start(Tone.now());
                 Tone.Transport.start();
                 isLooping = true;
-                showStatus(`Playing AI Remix at ${inferredBPM} BPM.`, 'blue');
+                showStatus(`Playing Local Remix at ${inferredBPM} BPM.`, 'blue');
 
             } else {
                 Tone.Transport.pause();
@@ -499,7 +472,7 @@
 
             showStatus("Preparing to record mix (max 20 seconds)...", 'yellow');
             downloadButton.disabled = true;
-            generateButton.disabled = true;
+            loadButton.disabled = true;
 
             const durationSeconds = mainPlayer.buffer.duration;
             const recordingDuration = Math.min(durationSeconds, 20); 
@@ -521,20 +494,20 @@
                     
                     const url = URL.createObjectURL(recordingBlob);
                     const anchor = document.createElement("a");
-                    anchor.download = `Gemini_AI_Remix_${inferredBPM}BPM.wav`;
+                    anchor.download = `Local_Remix_${inferredBPM}BPM.wav`;
                     anchor.href = url;
                     anchor.click();
                     
                     showStatus("Download successful! File created.", 'green');
                     downloadButton.disabled = false;
-                    generateButton.disabled = false;
+                    loadButton.disabled = false;
 
                 }, Tone.now() + recordingDuration);
 
             } catch (e) {
                 showStatus("Recording failed. Try reducing the BPM or using Chrome/Firefox.", 'red');
                 downloadButton.disabled = false;
-                generateButton.disabled = false;
+                loadButton.disabled = false;
             }
         }
 
@@ -542,7 +515,8 @@
         // --- Initial Setup ---
         window.onload = () => {
             initializeTone();
-            checkTrackLoaded(); // Ensure initial state is correct
+            populatePresets();
+            checkTrackLoaded(); 
         };
 
     </script>
