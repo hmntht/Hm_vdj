@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Gemini Remix Generator</title>
+    <title>AI Gemini Remix Designer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -25,44 +25,57 @@
             align-items: flex-start; 
         }
         .container {
-            max-width: 700px;
+            max-width: 600px;
             width: 95%;
             margin: 20px auto;
         }
         
-        .step-button {
+        .pad-button {
             transition: all 0.1s;
-            transform: scale(0.9);
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            background-color: rgba(255, 255, 255, 0.05);
-            height: 24px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border: 3px solid rgba(255, 255, 255, 0.1);
         }
-        /* Specific Active Step Styles (generated pattern visibility) */
-        .step-button.active-kick { background-color: rgba(var(--kick), 0.8); }
-        .step-button.active-snare { background-color: rgba(var(--snare), 0.8); }
-        .step-button.active-hihat { background-color: rgba(var(--hihat), 0.8); }
-        .step-button.active-bass { background-color: rgba(var(--bass), 0.8); }
+        .pad-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+        }
         
-        .step-button.active-kick, .step-button.active-snare, .step-button.active-hihat, .step-button.active-bass {
-            transform: scale(1.0);
-            box-shadow: 0 0 10px currentColor;
+        /* Specific Pad Colors */
+        #padKick { background-color: rgba(var(--kick), 0.8); }
+        #padSnare { background-color: rgba(var(--snare), 0.8); }
+        #padHihat { background-color: rgba(var(--hihat), 0.8); }
+        #padBass { background-color: rgba(var(--bass), 0.8); }
+        
+        /* Visual cue for manual trigger */
+        .ring-red-300 { --tw-ring-color: rgb(252, 165, 165); }
+        .ring-yellow-300 { --tw-ring-color: rgb(253, 230, 138); }
+        .ring-cyan-300 { --tw-ring-color: rgb(103, 232, 249); }
+        .ring-green-300 { --tw-ring-color: rgb(134, 239, 172); }
+
+        /* The transport visual indicator when looping */
+        .is-looping {
+            animation: pulse-border 1.5s infinite alternate;
+        }
+        @keyframes pulse-border {
+            from { border-color: rgba(255, 255, 255, 0.1); }
+            to { border-color: rgb(var(--bass)); }
         }
     </style>
 </head>
 <body class="p-4">
 
     <div class="container bg-gray-800 p-6 rounded-2xl shadow-2xl space-y-6">
-        <h1 class="text-3xl font-extrabold text-center text-blue-400">🧠 Gemini AI Remix Designer</h1>
-        <p class="text-gray-400 text-center mb-6">Tell the AI the **BPM and Key** of your track. Gemini will generate a complex, jazzy, bass-boosted beat and bassline, synchronized perfectly to your song.</p>
+        <h1 class="text-3xl font-extrabold text-center text-blue-400">🤖 AI Beat Mixer</h1>
+        <p class="text-gray-400 text-center mb-6">Upload your track, and the AI will analyze it to automatically determine the best tempo and key, then generate a complex, syncopated beat to mix with it.</p>
 
         <!-- Status Message -->
         <div id="statusMessage" class="bg-blue-900/50 text-blue-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100">
-            Upload your track and set parameters.
+            Upload your track to begin analysis.
         </div>
 
-        <!-- 1. Track & Parameter Controls -->
+        <!-- 1. Track & Analysis Controls -->
         <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Track Setup & AI Parameters</h2>
+            <h2 class="text-xl font-bold text-gray-200">Track Upload & Analysis</h2>
 
             <label class="block">
                 <span class="text-sm font-medium text-gray-400">Upload Track:</span>
@@ -73,79 +86,38 @@
                 />
             </label>
 
-            <div class="grid grid-cols-2 gap-4">
-                <!-- BPM Control -->
-                <div class="flex items-center space-x-2">
-                    <label for="bpmInput" class="text-gray-400 font-medium whitespace-nowrap">BPM:</label>
-                    <input type="number" id="bpmInput" value="128" min="60" max="200" step="1"
-                           class="flex-grow p-2 rounded-lg bg-gray-700 text-center border border-gray-600"
-                           oninput="handleBPMChange(this.value)"
-                    >
-                </div>
-                <!-- Key Control -->
-                <div class="flex items-center space-x-2">
-                    <label for="keyInput" class="text-gray-400 font-medium whitespace-nowrap">Key (e.g., C major):</label>
-                    <input type="text" id="keyInput" value="F minor" 
-                           class="flex-grow p-2 rounded-lg bg-gray-700 text-center border border-gray-600"
-                    >
-                </div>
-            </div>
-            
-            <!-- AI Generate Button -->
-            <button id="generateButton" onclick="generateRemixPattern()"
+            <!-- AI Analyze & Generate Button -->
+            <button id="generateButton" onclick="analyzeAndGenerateRemix()"
                     class="w-full p-3 rounded-xl font-black text-lg bg-purple-600 text-white hover:bg-purple-700 transition duration-300 disabled:bg-gray-600 shadow-xl shadow-purple-500/30"
                     disabled>
-                🤖 GENERATE AI BEAT PATTERN
+                🧠 ANALYZE & GENERATE AI REMIX
             </button>
         </div>
+        
+        <!-- 2. Drum Pad Interface -->
+        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
+             <h2 class="text-xl font-bold text-gray-200" id="analysisResultTitle">Drum Pad (Tap Sounds)</h2>
 
-        <!-- 2. Playback and Download -->
+            <div id="drumPad" class="grid grid-cols-2 gap-4">
+                <button id="padKick" onclick="manualTrigger('kick')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-red-300" disabled>KICK</button>
+                <button id="padSnare" onclick="manualTrigger('snare')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-yellow-300" disabled>SNARE</button>
+                <button id="padHihat" onclick="manualTrigger('hihat')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-cyan-300" disabled>HI-HAT</button>
+                <button id="padBass" onclick="manualTrigger('bass')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-green-300" disabled>BASS</button>
+            </div>
+        </div>
+
+        <!-- 3. Playback and Download -->
         <div class="grid grid-cols-2 gap-4">
-            <button id="playButton" onclick="togglePlayback()"
+            <button id="toggleLoopButton" onclick="toggleLoopPlayback()"
                     class="p-4 rounded-xl font-bold text-lg bg-blue-600 hover:bg-blue-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
                     disabled>
-                ▶️ Play / Resume
+                ▶️ Start AI Remix Loop
             </button>
             <button id="downloadButton" onclick="downloadMix()"
                     class="p-4 rounded-xl font-bold text-lg bg-green-600 hover:bg-green-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
                     disabled>
                 ⬇️ Download Mix
             </button>
-        </div>
-
-        <!-- 3. Sequencer Display (Shows the AI-Generated Pattern) -->
-        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Generated Rhythm Pattern (16 Steps)</h2>
-            
-            <!-- Step Labels -->
-            <div class="grid grid-cols-16 gap-1 text-xs font-semibold text-gray-500 pb-2">
-                <span class="text-center text-red-400">1</span><span></span><span class="text-center">3</span><span></span><span class="text-center text-red-400">5</span><span></span><span></span>
-                <span class="text-center text-red-400">9</span><span></span><span class="text-center">11</span><span></span><span class="text-center text-red-400">13</span><span></span><span></span>
-            </div>
-
-            <!-- Kick Track -->
-            <div class="flex items-center space-x-4">
-                <div class="w-20 text-red-400 font-bold">Kick</div>
-                <div id="kickSequencer" class="grid grid-cols-16 gap-1 flex-grow"></div>
-            </div>
-
-            <!-- Snare Track -->
-            <div class="flex items-center space-x-4">
-                <div class="w-20 text-yellow-400 font-bold">Snare</div>
-                <div id="snareSequencer" class="grid grid-cols-16 gap-1 flex-grow"></div>
-            </div>
-
-            <!-- Hi-Hat Track -->
-            <div class="flex items-center space-x-4">
-                <div class="w-20 text-cyan-400 font-bold">Hi-Hat</div>
-                <div id="hihatSequencer" class="grid grid-cols-16 gap-1 flex-grow"></div>
-            </div>
-            
-            <!-- Bassline Track -->
-            <div class="flex items-center space-x-4">
-                <div class="w-20 text-green-500 font-bold">Bassline</div>
-                <div id="bassSequencer" class="grid grid-cols-16 gap-1 flex-grow"></div>
-            </div>
         </div>
     </div>
 
@@ -155,10 +127,6 @@
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         const STEPS = 16;
         const TRACKS = ['kick', 'snare', 'hihat', 'bass']; 
-        const TRACK_CLASSES = { 
-            'kick': 'active-kick', 'snare': 'active-snare', 
-            'hihat': 'active-hihat', 'bass': 'active-bass' 
-        };
         
         // --- Audio State & Sequencer Data ---
         let mainPlayer = null; 
@@ -166,14 +134,16 @@
         let bassBoostFX; 
         let sequencer = null; 
         let isToneInitialized = false;
-
-        // Default empty pattern
+        let isLooping = false; 
+        let inferredBPM = 120;
+        
+        // Final generated pattern data
         let sequenceData = {
             kick: Array(STEPS).fill(false), 
             snare: Array(STEPS).fill(false), 
             hihat: Array(STEPS).fill(false), 
-            bass: Array(STEPS).fill(false),
-            bassNotes: Array(8).fill("C3") // 8th note sequence for bassline
+            bass: Array(STEPS).fill(false), // 16-step derived pattern
+            bassNotes: Array(8).fill("C3") // 8-step musical notes
         };
 
         // --- Instrument Definitions (Bass-Heavy Focus) ---
@@ -190,18 +160,27 @@
 
         // --- DOM Elements ---
         const audioFileInput = document.getElementById('audioFile');
-        const playButton = document.getElementById('playButton');
-        const downloadButton = document.getElementById('downloadButton');
         const generateButton = document.getElementById('generateButton');
+        const toggleLoopButton = document.getElementById('toggleLoopButton');
+        const downloadButton = document.getElementById('downloadButton');
         const statusMessage = document.getElementById('statusMessage');
-        const bpmInput = document.getElementById('bpmInput');
-        const keyInput = document.getElementById('keyInput');
+        const analysisResultTitle = document.getElementById('analysisResultTitle');
+        const drumPadButtons = {
+            'kick': document.getElementById('padKick'),
+            'snare': document.getElementById('padSnare'),
+            'hihat': document.getElementById('padHihat'),
+            'bass': document.getElementById('padBass'),
+        };
         
         // --- Utility Functions ---
 
         function showStatus(message, color = 'blue') {
             statusMessage.textContent = message;
             statusMessage.className = `bg-${color}-900/50 text-${color}-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100`;
+        }
+        
+        function setPadButtonsDisabled(disabled) {
+            Object.values(drumPadButtons).forEach(btn => btn.disabled = disabled);
         }
 
         // Exponential backoff for API calls
@@ -215,27 +194,20 @@
                     });
 
                     if (response.status === 429) { 
-                        // Too Many Requests, wait and retry with increasing delay
                         await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
                         continue;
                     }
-
                     if (!response.ok) {
-                        // Log HTTP error but proceed to check if model response is there
                         console.error(`Attempt ${i + 1}: HTTP error status ${response.status}`);
-                        // If it's the last retry and still not okay, throw
                         if (i === retries - 1) throw new Error(`HTTP error! status: ${response.status}`);
-                        // Wait before retrying
                         await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
                         continue;
                     }
                     return response.json();
 
                 } catch (error) {
-                    // Log network error
                     console.error(`Attempt ${i + 1}: Network/Fetch error:`, error);
                     if (i === retries - 1) throw error;
-                    // Wait before retrying
                     await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
                 }
             }
@@ -250,7 +222,7 @@
 
             // 1. Extreme Bass Boost FX Chain (Low-Shelf Filter at 80Hz)
             bassBoostFX = new Tone.Filter(80, "lowshelf").toDestination();
-            bassBoostFX.gain.value = 10; // +10 dB boost for requested 'extra high bass beats'
+            bassBoostFX.gain.value = 10; // +10 dB boost 
 
             // 2. Initialize Instruments and connect them to the Bass Boost FX
             Object.keys(InstrumentMap).forEach(track => {
@@ -273,15 +245,27 @@
                     if (note) { drumSynths.bass.triggerAttackRelease(note, "8n", time); }
                 }
                 
-                // --- Visual Step Indicator ---
+                // --- Visual Step Indicator (Light up the buttons when triggered by the loop) ---
                 Tone.Draw.schedule(() => {
-                    document.querySelectorAll('.step-button').forEach(btn => btn.classList.remove('ring-2', 'ring-white/50'));
-                    document.querySelectorAll(`[data-step="${step}"]`).forEach(btn => {
-                        btn.classList.add('ring-2', 'ring-white/50');
-                    });
+                    const kickBtn = drumPadButtons.kick;
+                    const snareBtn = drumPadButtons.snare;
+                    const hihatBtn = drumPadButtons.hihat;
+                    const bassBtn = drumPadButtons.bass;
+
+                    kickBtn.classList.remove('is-looping');
+                    snareBtn.classList.remove('is-looping');
+                    hihatBtn.classList.remove('is-looping');
+                    bassBtn.classList.remove('is-looping');
+                    
+                    if (sequenceData.kick[step]) kickBtn.classList.add('is-looping');
+                    if (sequenceData.snare[step]) snareBtn.classList.add('is-looping');
+                    if (sequenceData.hihat[step]) hihatBtn.classList.add('is-looping');
+                    if (sequenceData.bass[step] && step % 2 === 0) bassBtn.classList.add('is-looping');
+
                 }, time);
 
             }, Array.from({ length: STEPS }, (_, i) => i), "16n").start(0); 
+            sequencer.loop = true;
 
             isToneInitialized = true;
         }
@@ -299,48 +283,46 @@
 
             if (mainPlayer) { mainPlayer.stop(); mainPlayer.dispose(); }
             Tone.Transport.stop();
+            isLooping = false;
+            updateLoopButton(isLooping);
 
             const url = URL.createObjectURL(file);
 
             mainPlayer = new Tone.Player({
                 url: url,
                 onload: () => {
-                    mainPlayer.toDestination(); // Player connects directly to output (no boost, just the drums get the boost)
+                    mainPlayer.toDestination(); // Player connects directly to output
                     mainPlayer.loop = true;
                     mainPlayer.volume.value = -12; 
                     
                     generateButton.disabled = false;
-                    showStatus(`Track loaded. Set BPM/Key and press 'GENERATE AI BEAT PATTERN'.`, 'blue');
+                    setPadButtonsDisabled(true);
+                    showStatus(`Track loaded. Ready for AI Analysis.`, 'blue');
                 },
                 onerror: (e) => {
                     generateButton.disabled = true;
-                    playButton.disabled = true;
+                    setPadButtonsDisabled(true);
                     showStatus("Error loading track. Is it a valid audio file?", 'red');
                 }
             });
         });
 
-        // --- GEMINI API CALL (The AI Remix Core) ---
+        // --- GEMINI API CALL (Analyze & Generate) ---
 
-        async function generateRemixPattern() {
+        async function analyzeAndGenerateRemix() {
             if (!mainPlayer || !mainPlayer.loaded) {
                 showStatus("Please upload a track first.", 'red');
                 return;
             }
 
-            const bpm = bpmInput.value;
-            const key = keyInput.value;
-            
-            showStatus(`🧠 Generating complex, jazzy beat for ${bpm} BPM in ${key}...`, 'purple');
-            generateButton.disabled = true;
-            playButton.disabled = true;
-            
-            // Clear any previous visual indicators
-            renderSequencerState(true);
+            const fileName = audioFileInput.files[0].name;
 
-            const systemPrompt = `You are a world-class electronic music producer and music theory expert specializing in bass-heavy, jazz-influenced electronic music. Your task is to generate a 16-step rhythmic pattern and a matching 8-note walking bassline sequence. The beat must be highly syncopated and jazzy. The bassline must follow the rules of a simple walking bass that works well with the provided musical key.`;
+            showStatus(`🧠 Analyzing "${fileName}" and generating beat...`, 'purple');
+            generateButton.disabled = true;
             
-            const userQuery = `Create a complex, syncopated, jazzy 16-step drum pattern (Kick, Snare, Hi-Hat) and an 8-note bassline sequence for a track at ${bpm} BPM in the key of ${key}. The final output must be in the specified JSON schema.`;
+            const systemPrompt = `You are a world-class electronic music producer and music theory expert. Your primary goal is to analyze the provided track title to infer the best BPM and Key for a bass-heavy, jazz-influenced electronic remix. Your secondary goal is to generate the perfect beat and bassline for that inferred tempo and key.`;
+            
+            const userQuery = `Analyze the provided track title "${fileName}" to infer its likely BPM (integer) and main musical Key (e.g., 'A minor', 'C major'). Then, based on those inferred values, create a complex, syncopated, jazzy 16-step drum pattern (Kick, Snare, Hi-Hat) and an 8-note bassline sequence. The final output must be in the specified JSON schema.`;
             
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
@@ -350,12 +332,14 @@
                     responseSchema: {
                         type: "OBJECT",
                         properties: {
-                            "kickPattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the kick drum pattern (true for hit, false for silence). Must be complex and syncopated, not just 4-on-the-floor." },
+                            "inferredBPM": { "type": "INTEGER", "description": "The BPM determined by analyzing the track title (integer)." },
+                            "inferredKey": { "type": "STRING", "description": "The musical Key determined by analyzing the track title (e.g., 'A minor')." },
+                            "kickPattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the kick drum pattern (true for hit, false for silence). Must be complex and syncopated." },
                             "snarePattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the snare drum pattern (jazzy/syncopated hits)." },
                             "hihatPattern": { "type": "ARRAY", "items": { "type": "BOOLEAN" }, "description": "16-step boolean array for the hi-hat pattern (fast, rhythmic hits)." },
                             "basslineNotes": { "type": "ARRAY", "items": { "type": "STRING" }, "description": "An 8-element array of musical notes (e.g., 'C3', 'G2', 'Bb2') that form a 4-beat walking bass sequence in 8th notes, matching the specified key." }
                         },
-                        "propertyOrdering": ["kickPattern", "snarePattern", "hihatPattern", "basslineNotes"]
+                        "propertyOrdering": ["inferredBPM", "inferredKey", "kickPattern", "snarePattern", "hihatPattern", "basslineNotes"]
                     }
                 }
             };
@@ -364,108 +348,123 @@
 
             try {
                 const result = await fetchWithRetry(API_URL, payload);
-                const jsonText = result.candidates[0].content.parts[0].text;
+                let jsonText = result.candidates[0].content.parts[0].text;
                 
-                // Robust JSON Parsing
+                // ROBUST FIX: Strip any markdown triple backticks (```json or ```) that might wrap the JSON object.
+                jsonText = jsonText.replace(/```json\s*/g, '').replace(/\s*```/g, '');
+
                 try {
                     parsedJson = JSON.parse(jsonText);
                 } catch (e) {
                     console.error("JSON Parsing Error: AI returned invalid JSON.", jsonText);
-                    throw new Error("Invalid JSON structure received from AI. Try adjusting the key/BPM.");
+                    throw new Error("AI returned data in a non-parseable format even after cleanup.");
                 }
                 
                 // --- Apply the generated data ---
                 
-                // Simple validation to ensure arrays exist and are the right length (important for Tone.js)
-                if (parsedJson.kickPattern && parsedJson.kickPattern.length === STEPS) {
-                    sequenceData.kick = parsedJson.kickPattern;
-                }
-                if (parsedJson.snarePattern && parsedJson.snarePattern.length === STEPS) {
-                    sequenceData.snare = parsedJson.snarePattern;
-                }
-                if (parsedJson.hihatPattern && parsedJson.hihatPattern.length === STEPS) {
-                    sequenceData.hihat = parsedJson.hihatPattern;
-                }
-                if (parsedJson.basslineNotes && parsedJson.basslineNotes.length === 8) {
-                    sequenceData.bassNotes = parsedJson.basslineNotes;
-                } else {
-                     // If bass notes fail, log and use a safe default to prevent crash
-                     console.warn("Bassline note array was invalid. Using C3 default.");
-                     sequenceData.bassNotes = Array(8).fill("C3");
-                }
-
-
-                // Derive the 16-step bass pattern from the 8-step note list (only hit on 8th notes)
+                // 1. Update Inferred BPM/Key
+                inferredBPM = parsedJson.inferredBPM || 120;
+                const inferredKey = parsedJson.inferredKey || 'C major';
+                
+                Tone.Transport.bpm.value = inferredBPM;
+                
+                // 2. Load Patterns
+                sequenceData.kick = parsedJson.kickPattern || Array(STEPS).fill(false);
+                sequenceData.snare = parsedJson.snarePattern || Array(STEPS).fill(false);
+                sequenceData.hihat = parsedJson.hihatPattern || Array(STEPS).fill(false);
+                sequenceData.bassNotes = parsedJson.basslineNotes && parsedJson.basslineNotes.length === 8 
+                    ? parsedJson.basslineNotes : Array(8).fill("C3");
+                
+                // Derive the 16-step bass hit pattern
                 sequenceData.bass = Array(STEPS).fill(false);
                 for (let i = 0; i < 8; i++) {
-                    // Set 'true' only on the first 16th note of the 8th note interval
-                    if (sequenceData.bassNotes[i]) {
-                        sequenceData.bass[i * 2] = true;
-                    }
+                    if (sequenceData.bassNotes[i]) { sequenceData.bass[i * 2] = true; }
                 }
                 
-                renderSequencerState();
                 generateButton.disabled = false;
-                playButton.disabled = false;
-                showStatus("✅ AI Remix Pattern Loaded! Press Play.", 'green');
+                downloadButton.disabled = false;
+                setPadButtonsDisabled(false);
+                updateLoopButton(isLooping, inferredBPM, inferredKey);
+                analysisResultTitle.textContent = `Drum Pad (Inferred Key: ${inferredKey})`;
+                
+                showStatus(`✅ AI Remix Pattern Loaded! Inferred BPM: ${inferredBPM}. Press 'Start AI Remix Loop'.`, 'green');
 
             } catch (error) {
                 console.error("Gemini API Error:", error);
-                showStatus(`❌ AI generation failed: ${error.message}. Try C major or A minor.`, 'red');
+                showStatus(`❌ AI generation failed: ${error.message}. Try simplifying the file name.`, 'red');
                 generateButton.disabled = false;
             }
         }
 
 
         // --- Playback and Control Functions ---
+        
+        function updateLoopButton(isLooping, bpm = inferredBPM, key = 'N/A') {
+            const button = toggleLoopButton;
+            const keyDisplay = key !== 'N/A' ? `(${key})` : '';
 
-        async function togglePlayback() {
-            if (!mainPlayer || !mainPlayer.loaded) {
-                showStatus("Please upload a track first.", 'red');
-                return;
+            if (isLooping) {
+                button.textContent = `⏸️ Pause AI Loop @ ${bpm} BPM`;
+                button.classList.remove('bg-blue-600');
+                button.classList.add('bg-orange-600');
+            } else {
+                button.textContent = `▶️ Start AI Remix Loop @ ${bpm} BPM ${keyDisplay}`;
+                button.classList.remove('bg-orange-600');
+                button.classList.add('bg-blue-600');
             }
-            if (playButton.disabled) {
-                showStatus("Please press 'GENERATE AI BEAT PATTERN' first.", 'red');
+            button.disabled = !mainPlayer || !mainPlayer.loaded || generateButton.disabled;
+        }
+
+
+        async function toggleLoopPlayback() {
+            if (!mainPlayer || !mainPlayer.loaded) { return; }
+            if (toggleLoopButton.disabled) {
+                 showStatus("Please press 'ANALYZE & GENERATE' first.", 'red');
                 return;
             }
 
             await Tone.start();
             
-            if (Tone.Transport.state !== 'started') {
-                Tone.Transport.bpm.value = parseInt(bpmInput.value, 10);
-                mainPlayer.start(0);
+            if (!isLooping) {
+                Tone.Transport.bpm.value = inferredBPM;
+                mainPlayer.start(Tone.now());
                 Tone.Transport.start();
-                playButton.textContent = '⏸️ Pause';
-                downloadButton.disabled = true; 
-                showStatus(`Playing AI Remix at ${Tone.Transport.bpm.value} BPM.`, 'blue');
+                isLooping = true;
+                showStatus(`Playing AI Remix at ${inferredBPM} BPM.`, 'blue');
 
             } else {
                 Tone.Transport.pause();
                 mainPlayer.stop(); 
-                playButton.textContent = '▶️ Play / Resume';
-                downloadButton.disabled = false; 
+                isLooping = false;
                 showStatus("Paused. Ready to download.", 'blue');
+                
+                // Reset visual indicator after pause
+                Object.values(drumPadButtons).forEach(btn => btn.classList.remove('is-looping'));
             }
+            updateLoopButton(isLooping);
         }
 
-        function handleBPMChange(newBPM) {
-            const bpmValue = Math.min(Math.max(parseInt(newBPM, 10), 60), 200); 
-            bpmInput.value = bpmValue;
-
-            if (isToneInitialized) {
-                Tone.Transport.bpm.value = bpmValue;
+        function manualTrigger(instrument) {
+            // Stop loop if manual pads are hit while looping
+            if (isLooping) {
+                toggleLoopPlayback(); 
+            }
+            
+            // Trigger the sound
+            if (instrument === 'bass') {
+                const note = sequenceData.bassNotes[0] || 'C3'; // Just use the first note for a manual hit
+                drumSynths.bass.triggerAttackRelease(note, "8n");
+            } else {
+                drumSynths[instrument].triggerAttackRelease("16n");
             }
         }
 
         // --- Download Function ---
 
         async function downloadMix() {
-            if (!mainPlayer || !mainPlayer.loaded) {
-                showStatus("Please upload a track first.", 'red');
-                return;
-            }
-            if (Tone.Transport.state === 'started') {
-                showStatus("Stop playback before downloading.", 'red');
+            if (!mainPlayer || !mainPlayer.loaded) { return; }
+            if (isLooping) {
+                showStatus("Stop the loop before downloading.", 'red');
                 return;
             }
 
@@ -481,18 +480,19 @@
 
             try {
                 recorder.start();
-                Tone.Transport.bpm.value = parseInt(bpmInput.value, 10);
+                Tone.Transport.bpm.value = inferredBPM;
                 mainPlayer.start(0);
                 Tone.Transport.start();
 
                 await Tone.Pausable.schedule(async () => {
                     Tone.Transport.stop();
                     mainPlayer.stop();
+                    
                     const recordingBlob = await recorder.stop();
                     
                     const url = URL.createObjectURL(recordingBlob);
                     const anchor = document.createElement("a");
-                    anchor.download = "Gemini_AI_Remix.wav";
+                    anchor.download = `Gemini_AI_Remix_${inferredBPM}BPM.wav`;
                     anchor.href = url;
                     anchor.click();
                     
@@ -510,56 +510,10 @@
         }
 
 
-        // --- Sequencer UI & Initialization ---
-
-        function createSequencerGrid() {
-            TRACKS.forEach(trackName => {
-                const grid = document.getElementById(`${trackName}Sequencer`);
-                grid.innerHTML = ''; 
-                
-                for (let i = 0; i < STEPS; i++) {
-                    const button = document.createElement('button');
-                    const isDownBeat = (i % 4 === 0); 
-                    
-                    button.classList.add(
-                        'step-button', 'w-full', 'rounded-md', 
-                        isDownBeat ? 'bg-gray-700/50' : 'bg-gray-700/20'
-                    );
-                    button.dataset.track = trackName;
-                    button.dataset.step = i;
-                    button.disabled = true; 
-                    grid.appendChild(button);
-                }
-            });
-        }
-        
-        function renderSequencerState(clear = false) {
-            document.querySelectorAll('.step-button').forEach(button => {
-                const trackName = button.dataset.track;
-                const stepIndex = parseInt(button.dataset.step);
-                
-                button.classList.remove(TRACK_CLASSES[trackName]); 
-                
-                if (clear) return; // Stop here if we are just clearing the visuals
-
-                if (trackName === 'bass') {
-                    // Check the derived 16-step bass pattern
-                    if (sequenceData.bass[stepIndex]) {
-                         button.classList.add(TRACK_CLASSES[trackName]);
-                    }
-                } else if (sequenceData[trackName] && sequenceData[trackName][stepIndex]) {
-                    // Check drum patterns
-                    button.classList.add(TRACK_CLASSES[trackName]);
-                }
-            });
-        }
-
-
         // --- Initial Setup ---
         window.onload = () => {
-            handleBPMChange(bpmInput.value); 
-            createSequencerGrid();
             initializeTone();
+            updateLoopButton(isLooping);
         };
 
     </script>
