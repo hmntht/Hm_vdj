@@ -3,524 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local Remix Designer</title>
+    <title>In-Browser Torrent Streamer</title>
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Load WebTorrent library -->
+    <script src="https://cdn.jsdelivr.net/npm/webtorrent@1.1.0/webtorrent.min.js"></script>
     <style>
-        :root {
-            --kick: 239, 68, 68; /* Red */
-            --snare: 250, 204, 21; /* Yellow */
-            --hihat: 6, 182, 212; /* Cyan */
-            --bass: 16, 185, 129; /* Green */
-            --background: 17, 24, 39; 
+        /* Custom styles for the video player and card */
+        #status-log {
+            min-height: 80px;
         }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: rgb(var(--background));
-            color: #E5E7EB; 
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start; 
+        #player {
+            background-color: #000;
+            max-height: 50vh;
+            width: 100%;
+            border-radius: 0.5rem;
         }
         .container {
             max-width: 600px;
-            width: 95%;
-            margin: 20px auto;
-        }
-        
-        .pad-button {
-            transition: all 0.1s;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            border: 3px solid rgba(255, 255, 255, 0.1);
-        }
-        .pad-button:active {
-            transform: scale(0.95);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-        }
-        
-        /* Specific Pad Colors */
-        #padKick { background-color: rgba(var(--kick), 0.8); }
-        #padSnare { background-color: rgba(var(--snare), 0.8); }
-        #padHihat { background-color: rgba(var(--hihat), 0.8); }
-        #padBass { background-color: rgba(var(--bass), 0.8); }
-        
-        /* Visual cue for manual trigger */
-        .ring-red-300 { --tw-ring-color: rgb(252, 165, 165); }
-        .ring-yellow-300 { --tw-ring-color: rgb(253, 230, 138); }
-        .ring-cyan-300 { --tw-ring-color: rgb(103, 232, 249); }
-        .ring-green-300 { --tw-ring-color: rgb(134, 239, 172); }
-
-        /* The transport visual indicator when looping */
-        .is-looping {
-            animation: pulse-border 1.5s infinite alternate;
-        }
-        @keyframes pulse-border {
-            from { border-color: rgba(255, 255, 255, 0.1); }
-            to { border-color: rgb(var(--bass)); }
         }
     </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
 </head>
-<body class="p-4">
+<body class="bg-gray-50 min-h-screen p-4 font-sans flex justify-center items-start">
 
-    <div class="container bg-gray-800 p-6 rounded-2xl shadow-2xl space-y-6">
-        <h1 class="text-3xl font-extrabold text-center text-red-400">🎶 Local Beat Mixer (No API)</h1>
-        <p class="text-gray-400 text-center mb-6">Upload your track, select a Vibe Preset, and instantly load a complex, syncopated beat and bassline to mix with it.</p>
+    <div class="container w-full">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-indigo-700">WebTorrent Streamer</h1>
+            <p class="text-gray-500">Stream torrents directly in your browser using P2P technology.</p>
+        </header>
 
-        <!-- Status Message -->
-        <div id="statusMessage" class="bg-blue-900/50 text-blue-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100">
-            Upload your track to enable the Remix controls.
-        </div>
-        
-        <!-- 1. Track Upload -->
-        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Track Upload</h2>
+        <main class="bg-white p-6 shadow-xl rounded-xl">
+            <!-- Input Area -->
+            <div class="space-y-4 mb-6">
+                <!-- Magnet Link Input -->
+                <div class="flex flex-col space-y-2">
+                    <label for="magnet-link" class="text-sm font-medium text-gray-700">Paste Magnet Link:</label>
+                    <input type="text" id="magnet-link" placeholder="magnet:?xt=urn:btih:..."
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                    <button id="stream-magnet" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        Stream Magnet Link
+                    </button>
+                </div>
 
-            <label class="block">
-                <span class="text-sm font-medium text-gray-400">Upload Track:</span>
-                <input type="file" id="audioFile" accept="audio/*" class="block w-full text-sm text-gray-400
-                  file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0
-                  file:text-sm file:font-semibold file:bg-blue-500/10 file:text-blue-300
-                  hover:file:bg-blue-500/20"
-                  onchange="checkTrackLoaded()"
-                />
-            </label>
-        </div>
+                <div class="flex items-center">
+                    <div class="flex-grow border-t border-gray-300"></div>
+                    <span class="flex-shrink mx-4 text-gray-400 text-sm">OR</span>
+                    <div class="flex-grow border-t border-gray-300"></div>
+                </div>
 
-        <!-- 2. Preset Selection and Load Button -->
-        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-            <h2 class="text-xl font-bold text-gray-200">Vibe Selector</h2>
-             <select id="vibePreset" class="w-full p-2.5 rounded-lg bg-gray-700 text-white focus:ring-purple-500 focus:border-purple-500">
-                <!-- Options populated by JS -->
-            </select>
-
-            <button id="loadButton" onclick="loadRemixPreset()"
-                    class="w-full p-3 rounded-xl font-black text-lg bg-purple-600 text-white hover:bg-purple-700 transition duration-300 disabled:bg-gray-600 shadow-xl shadow-purple-500/30"
-                    disabled>
-                🎧 LOAD REMIX PRESET
-            </button>
-        </div>
-        
-        <!-- 3. Drum Pad Interface -->
-        <div class="p-4 bg-gray-900 rounded-xl shadow-inner space-y-4">
-             <h2 class="text-xl font-bold text-gray-200" id="analysisResultTitle">Drum Pad (Tap Sounds)</h2>
-
-            <div id="drumPad" class="grid grid-cols-2 gap-4">
-                <button id="padKick" onclick="manualTrigger('kick')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-red-300" disabled>KICK</button>
-                <button id="padSnare" onclick="manualTrigger('snare')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-yellow-300" disabled>SNARE</button>
-                <button id="padHihat" onclick="manualTrigger('hihat')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-cyan-300" disabled>HI-HAT</button>
-                <button id="padBass" onclick="manualTrigger('bass')" class="pad-button h-24 rounded-xl text-xl font-black text-white active:ring-4 ring-green-300" disabled>BASS</button>
+                <!-- Torrent File Upload -->
+                <div class="flex flex-col space-y-2">
+                    <label for="torrent-file" class="text-sm font-medium text-gray-700">Upload .torrent File:</label>
+                    <input type="file" id="torrent-file" accept=".torrent"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150">
+                    <button id="stream-file" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Stream Torrent File
+                    </button>
+                </div>
             </div>
-        </div>
 
-        <!-- 4. Playback and Download -->
-        <div class="grid grid-cols-2 gap-4">
-            <button id="toggleLoopButton" onclick="toggleLoopPlayback()"
-                    class="p-4 rounded-xl font-bold text-lg bg-blue-600 hover:bg-blue-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
-                    disabled>
-                ▶️ Start Local Remix Loop
-            </button>
-            <button id="downloadButton" onclick="downloadMix()"
-                    class="p-4 rounded-xl font-bold text-lg bg-green-600 hover:bg-green-700 transition duration-150 disabled:bg-gray-600 shadow-lg"
-                    disabled>
-                ⬇️ Download Mix
-            </button>
-        </div>
+            <!-- Video Player -->
+            <div id="video-container" class="mb-6 relative w-full aspect-video">
+                <video id="player" controls autoplay poster="https://placehold.co/600x337/818CF8/FFFFFF?text=Streaming+Content+Here"></video>
+                <div id="message-box" class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 rounded-xl hidden">
+                    <p class="text-white text-lg font-medium text-center"></p>
+                </div>
+            </div>
+
+            <!-- Status and Metrics -->
+            <div class="text-sm space-y-2">
+                <h3 class="text-lg font-semibold text-gray-700 border-b pb-1 mb-2">Status</h3>
+                <p id="status-log" class="text-gray-600 text-xs italic">Awaiting input...</p>
+                <div class="flex justify-between items-center pt-2 border-t mt-2">
+                    <div class="text-gray-500">
+                        <span class="font-medium">Download:</span> <span id="download-speed">0.00 KB/s</span>
+                    </div>
+                    <div class="text-gray-500">
+                        <span class="font-medium">Peers:</span> <span id="peer-count">0</span>
+                    </div>
+                    <div class="text-gray-500">
+                        <span class="font-medium">Progress:</span> <span id="progress-percent">0%</span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
     </div>
 
-    <script>
-        // --- Global Constants & Presets (The Local AI Replacement) ---
-        const STEPS = 16;
-        
-        // --- Pre-programmed musical patterns for local analysis replacement ---
-        const REMIX_PRESETS = {
-            'Jazzy Drum & Bass (170 BPM)': {
-                inferredBPM: 170,
-                inferredKey: 'A minor',
-                kickPattern: [true, false, false, false, true, false, false, false, false, false, true, false, false, false, true, false], 
-                snarePattern: [false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, true], 
-                hihatPattern: [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true], 
-                basslineNotes: ["A2", "D3", "E3", "A2", "C3", "G3", "F3", "A2"], 
-            },
-            'Deep House Groove (124 BPM)': {
-                inferredBPM: 124,
-                inferredKey: 'F# minor',
-                kickPattern: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false], 
-                snarePattern: [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false], 
-                hihatPattern: [false, true, false, true, false, true, false, true, false, true, false, true, false, true, false, true], 
-                basslineNotes: ["F#2", "G#2", "A2", "C#3", "D#3", "C#3", "B2", "G#2"], 
-            },
-            'Lo-Fi Hip-Hop Beat (80 BPM)': {
-                inferredBPM: 80,
-                inferredKey: 'C major',
-                kickPattern: [true, false, false, false, false, false, true, false, true, false, false, false, false, false, true, false], 
-                snarePattern: [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false], 
-                hihatPattern: [true, false, true, true, false, false, true, false, true, false, true, true, false, false, true, false], 
-                basslineNotes: ["C2", "G2", "A2", "F2", "C2", "G2", "A2", "F2"], 
-            },
-            'Techno Industrial (135 BPM)': {
-                inferredBPM: 135,
-                inferredKey: 'D minor',
-                kickPattern: [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false], 
-                snarePattern: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false], 
-                hihatPattern: [false, false, false, true, false, false, false, true, false, false, false, true, false, false, false, true], 
-                basslineNotes: ["D2", "D2", "A2", "A2", "G2", "G2", "D2", "D2"], 
-            }
-        };
+    <script type="module">
+        // Standard Firebase initialization boilerplate (required by environment)
+        // Although this app is client-side P2P streaming and doesn't use Firestore/Auth,
+        // we include the setup as per the environment mandate.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // --- Audio State & Sequencer Data ---
-        let mainPlayer = null; 
-        let drumSynths = {}; 
-        let bassBoostFX; 
-        let sequencer = null; 
-        let isToneInitialized = false;
-        let isLooping = false; 
-        let inferredBPM = 120;
-        
-        let sequenceData = {
-            kick: Array(STEPS).fill(false), 
-            snare: Array(STEPS).fill(false), 
-            hihat: Array(STEPS).fill(false),
-            bass: Array(STEPS).fill(false),
-            bassNotes: Array(8).fill("C3")
-        };
-
-        // --- Instrument Definitions (Bass-Heavy Focus) ---
-        const InstrumentMap = {
-            'kick': new Tone.MembraneSynth({ pitchDecay: 0.04, envelope: { attack: 0.001, decay: 0.8, sustain: 0, release: 0.1 }, volume: -3 }), 
-            'snare': new Tone.NoiseSynth({ noise: { type: "brown" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0, release: 0.1 }, volume: -6 }), 
-            'hihat': new Tone.NoiseSynth({ noise: { type: "white" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.05 }, volume: -10 }),
-            'bass': new Tone.MonoSynth({
-                oscillator: { type: 'sine' }, filter: { Q: 8, frequency: 200 }, envelope: { attack: 0.005, decay: 0.3, sustain: 0.5, release: 0.8 }, 
-                filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 0.5, release: 0.1, baseFrequency: 200, octaves: 2 },
-                volume: -6
-            }), 
-        };
-
-        // --- DOM Elements ---
-        const audioFileInput = document.getElementById('audioFile');
-        const loadButton = document.getElementById('loadButton');
-        const toggleLoopButton = document.getElementById('toggleLoopButton');
-        const downloadButton = document.getElementById('downloadButton');
-        const statusMessage = document.getElementById('statusMessage');
-        const analysisResultTitle = document.getElementById('analysisResultTitle');
-        const vibePresetSelect = document.getElementById('vibePreset');
-        const drumPadButtons = {
-            'kick': document.getElementById('padKick'),
-            'snare': document.getElementById('padSnare'),
-            'hihat': document.getElementById('padHihat'),
-            'bass': document.getElementById('padBass'),
-        };
-        
-        // --- Utility Functions ---
-
-        function showStatus(message, color = 'blue') {
-            statusMessage.textContent = message;
-            statusMessage.className = `bg-${color}-900/50 text-${color}-300 p-3 rounded-lg text-sm text-center font-semibold opacity-100`;
+        if (firebaseConfig) {
+            // Log for compliance, but no actual Firebase services are used for torrenting
+            console.log(`App ID: ${appId}. Firebase Config available.`);
         }
-        
-        function setPadButtonsDisabled(disabled) {
-            Object.values(drumPadButtons).forEach(btn => btn.disabled = disabled);
+        // End of Firebase boilerplate
+
+        const client = new WebTorrent();
+
+        // UI Element references
+        const magnetInput = document.getElementById('magnet-link');
+        const fileInput = document.getElementById('torrent-file');
+        const streamMagnetButton = document.getElementById('stream-magnet');
+        const streamFileButton = document.getElementById('stream-file');
+        const statusLog = document.getElementById('status-log');
+        const downloadSpeed = document.getElementById('download-speed');
+        const peerCount = document.getElementById('peer-count');
+        const progressPercent = document.getElementById('progress-percent');
+        const player = document.getElementById('player');
+        const messageBox = document.getElementById('message-box');
+        const messageBoxText = messageBox.querySelector('p');
+
+        let currentTorrent = null;
+        let isStreaming = false;
+
+        /**
+         * Shows a message in the video player overlay instead of using alert().
+         * @param {string} message The message to display.
+         * @param {number} durationMs How long to show the message (0 for persistent).
+         */
+        function showMessage(message, durationMs = 3000) {
+            messageBoxText.textContent = message;
+            messageBox.classList.remove('hidden');
+
+            if (durationMs > 0) {
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, durationMs);
+            }
         }
 
         /**
-         * Checks if the track is loaded and enables the load button.
+         * Clears the current streaming state and updates the UI.
          */
-        function checkTrackLoaded() {
-            const isTrackLoaded = mainPlayer && mainPlayer.loaded;
-            loadButton.disabled = !isTrackLoaded;
-            if (isTrackLoaded) {
-                 showStatus("Track loaded. Select a Vibe Preset and press 'LOAD REMIX PRESET'.", 'green');
+        function resetStream() {
+            if (currentTorrent) {
+                currentTorrent.destroy();
+                currentTorrent = null;
             }
-            // Also update the loop button state
-            updateLoopButton(isLooping);
+            isStreaming = false;
+            player.removeAttribute('src');
+            player.load();
+            statusLog.textContent = 'Awaiting input...';
+            downloadSpeed.textContent = '0.00 KB/s';
+            peerCount.textContent = '0';
+            progressPercent.textContent = '0%';
+            showMessage('Stream stopped.', 1500);
         }
 
+        /**
+         * Updates the streaming metrics in the UI.
+         */
+        function updateMetrics() {
+            if (!currentTorrent) return;
 
-        // --- TONE.JS Initialization & Setup ---
+            // Round progress to 2 decimal places
+            const progress = (currentTorrent.progress * 100).toFixed(2);
+            progressPercent.textContent = `${progress}%`;
 
-        function initializeTone() {
-            if (isToneInitialized) return;
-            showStatus("Initializing Audio Engine...");
+            // Display speed in KB/s
+            const speedKb = (currentTorrent.downloadSpeed / 1024).toFixed(2);
+            downloadSpeed.textContent = `${speedKb} KB/s`;
 
-            // 1. Extreme Bass Boost FX Chain (Low-Shelf Filter at 80Hz)
-            bassBoostFX = new Tone.Filter(80, "lowshelf").toDestination();
-            bassBoostFX.gain.value = 10; // +10 dB boost 
-
-            // 2. Initialize Instruments and connect them to the Bass Boost FX
-            Object.keys(InstrumentMap).forEach(track => {
-                drumSynths[track] = InstrumentMap[track].connect(bassBoostFX);
-            });
-
-            // 3. Main Sequencer (runs on 16th notes)
-            sequencer = new Tone.Sequence((time, step) => {
-                
-                // --- Step Logic ---
-                const bassStep = Math.floor(step / 2) % 8; // Bass is 8th notes, drums are 16th
-
-                if (sequenceData.kick[step]) { drumSynths.kick.triggerAttackRelease("C1", "16n", time); }
-                if (sequenceData.snare[step]) { drumSynths.snare.triggerAttackRelease("16n", time); }
-                if (sequenceData.hihat[step]) { drumSynths.hihat.triggerAttackRelease("16n", time); }
-                
-                // Bass note is triggered on the first 16th note of the 8th note interval
-                if (sequenceData.bass[step] && step % 2 === 0) { 
-                    const note = sequenceData.bassNotes[bassStep];
-                    if (note) { drumSynths.bass.triggerAttackAttackRelease(note, "8n", time); }
-                }
-                
-                // --- Visual Step Indicator (Light up the buttons when triggered by the loop) ---
-                Tone.Draw.schedule(() => {
-                    const kickBtn = drumPadButtons.kick;
-                    const snareBtn = drumPadButtons.snare;
-                    const hihatBtn = drumPadButtons.hihat;
-                    const bassBtn = drumPadButtons.bass;
-
-                    kickBtn.classList.remove('is-looping');
-                    snareBtn.classList.remove('is-looping');
-                    hihatBtn.classList.remove('is-looping');
-                    bassBtn.classList.remove('is-looping');
-                    
-                    if (sequenceData.kick[step]) kickBtn.classList.add('is-looping');
-                    if (sequenceData.snare[step]) snareBtn.classList.add('is-looping');
-                    if (sequenceData.hihat[step]) hihatBtn.classList.add('is-looping');
-                    if (sequenceData.bass[step] && step % 2 === 0) bassBtn.classList.add('is-looping');
-
-                }, time);
-
-            }, Array.from({ length: STEPS }, (_, i) => i), "16n").start(0); 
-            sequencer.loop = true;
-
-            isToneInitialized = true;
+            peerCount.textContent = currentTorrent.numPeers;
         }
 
-        // Populates the preset dropdown
-        function populatePresets() {
-            const select = vibePresetSelect;
-            select.innerHTML = ''; // Clear existing options
-            Object.keys(REMIX_PRESETS).forEach(name => {
-                const option = document.createElement('option');
-                option.value = name;
-                option.textContent = name;
-                select.appendChild(option);
-            });
-            // Select the first one by default
-            select.selectedIndex = 0;
-        }
+        /**
+         * Handles the streaming logic once a magnet link or torrent file is added.
+         * @param {object} torrent The WebTorrent torrent object.
+         */
+        function onTorrent(torrent) {
+            currentTorrent = torrent;
+            isStreaming = true;
+            statusLog.textContent = `Torrent loaded: ${torrent.name}. Finding largest file for playback...`;
+            showMessage(`Found torrent: ${torrent.name}. Starting download.`, 4000);
 
-
-        // --- Audio File Handling ---
-
-        audioFileInput.addEventListener('change', async () => {
-            const file = audioFileInput.files[0];
+            // Find the largest file in the torrent (usually the main video)
+            let file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
+            
             if (!file) {
-                 mainPlayer = null;
-                 checkTrackLoaded(); 
+                // If no typical video extension is found, fall back to the largest file
+                file = torrent.files.reduce((a, b) => (a.length > b.length ? a : b));
+            }
+            
+            if (!file) {
+                 statusLog.textContent = 'Error: No files found in the torrent.';
+                 showMessage('Error: No files found in the torrent.', 5000);
                  return;
             }
 
-            if (!isToneInitialized) { await initializeTone(); }
+            statusLog.textContent = `Streaming file: ${file.name}. Waiting for peers...`;
 
-            showStatus(`Loading "${file.name}"...`, 'blue');
-
-            if (mainPlayer) { mainPlayer.stop(); mainPlayer.dispose(); }
-            Tone.Transport.stop();
-            isLooping = false;
-            updateLoopButton(isLooping);
-
-            const url = URL.createObjectURL(file);
-
-            mainPlayer = new Tone.Player({
-                url: url,
-                onload: () => {
-                    mainPlayer.toDestination(); // Player connects directly to output
-                    mainPlayer.loop = true;
-                    mainPlayer.volume.value = -12; 
-                    
-                    setPadButtonsDisabled(true);
-                    checkTrackLoaded();
-                },
-                onerror: (e) => {
-                    mainPlayer = null;
-                    setPadButtonsDisabled(true);
-                    checkTrackLoaded();
-                    showStatus("Error loading track. Is it a valid audio file?", 'red');
-                    console.error("Tone.js Player Error:", e);
+            // Stream the file to the HTML5 video player
+            // WebTorrent handles the downloading/streaming directly to the video element
+            file.renderTo(player, (err) => {
+                if (err) {
+                    statusLog.textContent = `Error rendering file: ${err.message}`;
+                    showMessage(`Render Error: ${err.message}`, 5000);
+                    return;
                 }
+                player.play(); // Start playback immediately
+                statusLog.textContent = `Playback started for ${file.name}.`;
             });
+
+            // Update metrics every 1 second
+            torrent.on('wire', () => {
+                statusLog.textContent = `Peers connected. Streaming...`;
+            });
+            torrent.on('done', () => {
+                statusLog.textContent = `Download finished! File fully buffered.`;
+                showMessage('Download complete!', 3000);
+            });
+            setInterval(updateMetrics, 1000);
+        }
+
+        // --- Event Listeners ---
+
+        client.on('error', (err) => {
+            console.error('WebTorrent Error:', err.message);
+            statusLog.textContent = `WebTorrent Client Error: ${err.message}. Try reloading or using a different link.`;
+            showMessage(`Fatal Error: ${err.message}`, 5000);
+            resetStream();
         });
 
-        // --- LOCAL PRESET LOAD FUNCTION ---
+        // 1. Stream Magnet Link Button Handler
+        streamMagnetButton.addEventListener('click', () => {
+            if (isStreaming) resetStream();
 
-        function loadRemixPreset() {
-            if (!mainPlayer || !mainPlayer.loaded) {
-                showStatus("Please upload a track first.", 'red');
+            const magnetURI = magnetInput.value.trim();
+            if (!magnetURI) {
+                showMessage('Please enter a valid magnet link.', 2000);
                 return;
             }
 
-            const selectedPresetName = vibePresetSelect.value;
-            const preset = REMIX_PRESETS[selectedPresetName];
+            statusLog.textContent = 'Starting stream from magnet link...';
+            client.add(magnetURI, onTorrent);
+        });
 
-            if (!preset) {
-                showStatus("Error: Invalid preset selected.", 'red');
+        // 2. Stream Torrent File Button Handler
+        streamFileButton.addEventListener('click', () => {
+            if (isStreaming) resetStream();
+
+            const files = fileInput.files;
+            if (files.length === 0) {
+                showMessage('Please select a .torrent file to upload.', 2000);
                 return;
             }
 
-            // --- Apply the generated data ---
-            inferredBPM = preset.inferredBPM;
-            const inferredKey = preset.inferredKey;
-            
-            Tone.Transport.bpm.value = inferredBPM;
-            
-            // Safely load patterns
-            const getPattern = (data) => Array.isArray(data) && data.length === STEPS ? data : Array(STEPS).fill(false);
-            sequenceData.kick = getPattern(preset.kickPattern);
-            sequenceData.snare = getPattern(preset.snarePattern);
-            sequenceData.hihat = getPattern(preset.hihatPattern);
-            
-            sequenceData.bassNotes = Array.isArray(preset.basslineNotes) && preset.basslineNotes.length === 8 
-                ? preset.basslineNotes : Array(8).fill("C3");
-            
-            // Derive the 16-step bass hit pattern
-            sequenceData.bass = Array(STEPS).fill(false);
-            for (let i = 0; i < 8; i++) {
-                if (sequenceData.bassNotes[i]) { sequenceData.bass[i * 2] = true; }
-            }
-            
-            loadButton.disabled = false;
-            downloadButton.disabled = false;
-            setPadButtonsDisabled(false);
-            updateLoopButton(isLooping, inferredBPM, inferredKey);
-            analysisResultTitle.textContent = `Drum Pad (Vibe: ${inferredKey} - ${selectedPresetName})`;
-            
-            showStatus(`✅ Remix Vibe Loaded! BPM: ${inferredBPM}. Press 'Start Local Remix Loop'.`, 'green');
-        }
+            statusLog.textContent = 'Starting stream from torrent file...';
+            client.add(files[0], onTorrent);
+        });
 
+        // 3. Optional: Allow users to stop/reset the stream
+        player.addEventListener('loadeddata', () => {
+            // Hide the initial message box if playback starts
+            messageBox.classList.add('hidden');
+        });
 
-        // --- Playback and Control Functions ---
-        
-        function updateLoopButton(isLooping, bpm = inferredBPM, key = 'N/A') {
-            const button = toggleLoopButton;
-            const keyDisplay = key !== 'N/A' ? `(${key})` : '';
-
-            if (isLooping) {
-                button.textContent = `⏸️ Pause Local Loop @ ${bpm} BPM`;
-                button.classList.remove('bg-blue-600');
-                button.classList.add('bg-orange-600');
-            } else {
-                button.textContent = `▶️ Start Local Remix Loop @ ${bpm} BPM ${keyDisplay}`;
-                button.classList.remove('bg-orange-600');
-                button.classList.add('bg-blue-600');
-            }
-            // Ensure loop button is disabled until a track is loaded AND a preset has been loaded once
-            const isPresetLoaded = !analysisResultTitle.textContent.includes('Tap Sounds');
-            button.disabled = !mainPlayer || !mainPlayer.loaded || !isPresetLoaded;
-        }
-
-
-        async function toggleLoopPlayback() {
-            if (!mainPlayer || !mainPlayer.loaded) { return; }
-            if (toggleLoopButton.disabled) {
-                 showStatus("Please press 'LOAD REMIX PRESET' first.", 'red');
-                return;
-            }
-
-            await Tone.start();
-            
-            if (!isLooping) {
-                Tone.Transport.bpm.value = inferredBPM;
-                mainPlayer.start(Tone.now());
-                Tone.Transport.start();
-                isLooping = true;
-                showStatus(`Playing Local Remix at ${inferredBPM} BPM.`, 'blue');
-
-            } else {
-                Tone.Transport.pause();
-                mainPlayer.stop(); 
-                isLooping = false;
-                showStatus("Paused. Ready to download.", 'blue');
-                
-                // Reset visual indicator after pause
-                Object.values(drumPadButtons).forEach(btn => btn.classList.remove('is-looping'));
-            }
-            updateLoopButton(isLooping);
-        }
-
-        function manualTrigger(instrument) {
-            // Stop loop if manual pads are hit while looping
-            if (isLooping) {
-                toggleLoopPlayback(); 
-            }
-            
-            // Trigger the sound
-            if (instrument === 'bass') {
-                const note = sequenceData.bassNotes[0] || 'C3'; // Just use the first note for a manual hit
-                drumSynths.bass.triggerAttackRelease(note, "8n");
-            } else {
-                drumSynths[instrument].triggerAttackRelease("16n");
-            }
-        }
-
-        // --- Download Function ---
-
-        async function downloadMix() {
-            if (!mainPlayer || !mainPlayer.loaded) { return; }
-            if (isLooping) {
-                showStatus("Stop the loop before downloading.", 'red');
-                return;
-            }
-
-            showStatus("Preparing to record mix (max 20 seconds)...", 'yellow');
-            downloadButton.disabled = true;
-            loadButton.disabled = true;
-
-            const durationSeconds = mainPlayer.buffer.duration;
-            const recordingDuration = Math.min(durationSeconds, 20); 
-
-            const recorder = new Tone.Recorder();
-            Tone.Destination.connect(recorder); 
-
-            try {
-                recorder.start();
-                Tone.Transport.bpm.value = inferredBPM;
-                mainPlayer.start(0);
-                Tone.Transport.start();
-
-                await Tone.Pausable.schedule(async () => {
-                    Tone.Transport.stop();
-                    mainPlayer.stop();
-                    
-                    const recordingBlob = await recorder.stop();
-                    
-                    const url = URL.createObjectURL(recordingBlob);
-                    const anchor = document.createElement("a");
-                    anchor.download = `Local_Remix_${inferredBPM}BPM.wav`;
-                    anchor.href = url;
-                    anchor.click();
-                    
-                    showStatus("Download successful! File created.", 'green');
-                    downloadButton.disabled = false;
-                    loadButton.disabled = false;
-
-                }, Tone.now() + recordingDuration);
-
-            } catch (e) {
-                showStatus("Recording failed. Try reducing the BPM or using Chrome/Firefox.", 'red');
-                downloadButton.disabled = false;
-                loadButton.disabled = false;
-            }
-        }
-
-
-        // --- Initial Setup ---
-        window.onload = () => {
-            initializeTone();
-            populatePresets();
-            checkTrackLoaded(); 
-        };
+        // Setup initial status
+        document.addEventListener('DOMContentLoaded', () => {
+            statusLog.textContent = 'WebTorrent client initialized. Ready to stream.';
+        });
 
     </script>
-
 </body>
 </html>
 
